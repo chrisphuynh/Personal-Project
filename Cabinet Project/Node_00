@@ -1,0 +1,286 @@
+#include <SPI.h>
+#include <RF24Network.h>
+#include "RTClib.h"
+#include <nRF24L01.h>
+#include <RF24.h>
+#include "Adafruit_Thermal.h"
+#include "SoftwareSerial.h"
+#define TX_PIN 1 // Arduino transmit  GREEN WIRE  labeled TX on printer
+#define RX_PIN 0 // Arduino receive   BLUE WIRE   labeled RX on printer
+ 
+SoftwareSerial mySerial(RX_PIN, TX_PIN); // Declare SoftwareSerial obj first
+Adafruit_Thermal printer(&mySerial);     // Pass addr to printer constructor
+ 
+RTC_DS1307 rtc;
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+ 
+RF24 radio(7, 8); // CE, CSN
+RF24Network network(radio);      // Include the radio in the network
+const uint16_t this_node = 00;   // Address of this node in Octal format ( 04,031, etc)
+const uint16_t node01 = 01;
+const uint16_t node02 = 02;
+const uint16_t node03 = 03;
+const uint16_t node04 = 04;
+const uint16_t node05 = 05;
+const uint16_t node06 = 06;
+ 
+unsigned long creditsNode01 = 0;
+unsigned long creditsNode02 = 0;
+unsigned long creditsNode03 = 0;
+unsigned long creditsNode04 = 0;
+unsigned long creditsNode05 = 0;
+unsigned long creditsNode06 = 0;
+ 
+void setup() {
+// Set up for the printer
+  pinMode(A2, OUTPUT);
+  digitalWrite(A2, LOW);
+  pinMode(A3, OUTPUT);
+  digitalWrite(A3, HIGH);
+  
+  mySerial.begin(9600);
+  printer.begin();
+ 
+// Set up for the RF24 Network  
+  SPI.begin();
+  radio.begin();
+  network.begin(90, this_node);  //(channel, node address)
+  radio.setDataRate(RF24_2MBPS);
+  Serial.begin(9600);
+ 
+// Set up for RTC
+#ifndef ESP8266
+  while (!Serial); // wait for serial port to connect. Needed for native USB
+#endif
+ 
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    Serial.flush();
+    abort();
+  }
+ 
+  if (! rtc.isrunning()) {
+    Serial.println("RTC is NOT running, let's set the time!");
+    // When time needs to be set on a new device, or after a power loss, the
+    // following line sets the RTC to the date & time this sketch was compiled
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
+ 
+  // When time needs to be re-set on a previously configured device, the
+  // following line sets the RTC to the date & time this sketch was compiled
+  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  // This line sets the RTC with an explicit date & time, for example to set
+  // January 21, 2014 at 3am you would call:
+  // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+}
+ 
+void loop() {
+  DateTime now = rtc.now();
+  delay(5);
+  network.update();
+  while (network.available())  {
+    RF24NetworkHeader header;
+    int numberPulses = 0;
+    int pulseCheck = 0;
+    network.read(header, &numberPulses, sizeof(numberPulses));
+    switch (header.from_node) {
+      case node01:
+/*        {
+        pulseCheck = numberPulses;
+        Serial.print("Pulse Check = ");
+        Serial.println(pulseCheck);
+        delay(50);
+        // Verification Loop
+        // Sending
+        RF24NetworkHeader header01 (node01);
+        bool ok = network.write(header01, &numberPulses, sizeof(numberPulses));
+        network.update();
+        while (network.available()) {
+          do  {
+            // Receiving
+            network.read(header, &numberPulses, sizeof(numberPulses));
+            pulseCheck = numberPulses;
+            Serial.print("Verification Check: pulseCheck = ");
+            Serial.println(pulseCheck);
+            // Sending
+            bool ok1 = network.write(header01, &numberPulses, sizeof(numberPulses));
+            network.update();
+            delay(25);
+          }while (pulseCheck != numberPulses);
+        }   
+*/
+        
+        if (numberPulses == 10) {
+          creditsNode01 = creditsNode01 + 10;
+        }
+        if (numberPulses == 5) {
+          creditsNode01 = creditsNode01 + 5;
+        }
+        if (numberPulses == 1) {
+          creditsNode01 = creditsNode01 + 1;
+        }
+        Serial.print(now.year(), DEC);
+        Serial.print('/');
+        Serial.print(now.month(), DEC);
+        Serial.print('/');
+        Serial.print(now.day(), DEC);
+        Serial.print(" (");
+        Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
+        Serial.print(") ");
+        Serial.print(now.hour(), DEC);
+        Serial.print(':');
+        Serial.print(now.minute(), DEC);
+        Serial.print(':');
+        Serial.print(now.second(), DEC);
+        Serial.println();
+        Serial.print("Node01: ");
+        Serial.println(creditsNode01);
+    
+        printer.print(now.year(), DEC);
+        printer.print('/');
+        printer.print(now.month(), DEC);
+        printer.print('/');
+        printer.print(now.day(), DEC);
+        printer.print(" (");
+        printer.print(daysOfTheWeek[now.dayOfTheWeek()]);
+        printer.print(") ");
+        printer.print(now.hour(), DEC);
+        printer.print(':');
+        printer.print(now.minute(), DEC);
+        printer.print(':');
+        printer.print(now.second(), DEC);
+        printer.println();
+        printer.print("Node01: ");
+        printer.println(creditsNode01);
+        printer.feed(2);
+        }
+        break;
+           
+      case node02:   
+/*        {
+        pulseCheck = numberPulses;
+        Serial.println("Pulse Check = " + pulseCheck);
+        // Verification Loop
+        // Sending
+        RF24NetworkHeader header02 (node02);
+        bool ok = network.write(header02, &numberPulses, sizeof(numberPulses));
+        network.update();
+        while (network.available()) {
+          do  {
+            // Receiving
+            network.read(header, &numberPulses, sizeof(numberPulses));
+            pulseCheck = numberPulses;
+            Serial.println("Verification Check: pulseCheck = " + pulseCheck);
+            // Sending
+            bool ok1 = network.write(header02, &numberPulses, sizeof(numberPulses));
+          }while (pulseCheck != numberPulses);
+        }
+*/        
+        if (numberPulses == 10) {
+          creditsNode02 = creditsNode02 + 10;
+        }
+        if (numberPulses == 5) {
+          creditsNode02 = creditsNode02 + 5;
+        }
+        if (numberPulses == 1) {
+          creditsNode02 = creditsNode02 + 1;
+        }
+        Serial.print(now.year(), DEC);
+        Serial.print('/');
+        Serial.print(now.month(), DEC);
+        Serial.print('/');
+        Serial.print(now.day(), DEC);
+        Serial.print(" (");
+        Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
+        Serial.print(") ");
+        Serial.print(now.hour(), DEC);
+        Serial.print(':');
+        Serial.print(now.minute(), DEC);
+        Serial.print(':');
+        Serial.print(now.second(), DEC);
+        Serial.println();
+        Serial.print("Node02: ");
+        Serial.println(creditsNode02);
+    
+        printer.print(now.year(), DEC);
+        printer.print('/');
+        printer.print(now.month(), DEC);
+        printer.print('/');
+        printer.print(now.day(), DEC);
+        printer.print(" (");
+        printer.print(daysOfTheWeek[now.dayOfTheWeek()]);
+        printer.print(") ");
+        printer.print(now.hour(), DEC);
+        printer.print(':');
+        printer.print(now.minute(), DEC);
+        printer.print(':');
+        printer.print(now.second(), DEC);
+        printer.println();
+        printer.print("Node02: ");
+        printer.println(creditsNode02);
+        printer.feed(2);
+        
+        break;
+ /*     
+      case node03:   
+        if (numberPulses == 10) {
+          creditsNode03 = creditsNode03 + 10;
+        }
+        if (numberPulses == 5) {
+          creditsNode03 = creditsNode03 + 5;
+        }
+        if (numberPulses == 1) {
+          creditsNode03 = creditsNode03 + 1;
+        }
+        Serial.print("Node03: ");
+        Serial.println(creditsNode03);
+        break;
+      
+      case node04:   
+        if (numberPulses == 10) {
+          creditsNode04 = creditsNode04 + 10;
+        }
+        if (numberPulses == 5) {
+          creditsNode04 = creditsNode04 + 5;
+        }
+        if (numberPulses == 1) {
+          creditsNode04 = creditsNode04 + 1;
+        }
+        Serial.print("Node04: ");
+        Serial.println(creditsNode04);
+        break;
+ 
+      case node05:   
+        if (numberPulses == 10) {
+          creditsNode05 = creditsNode05 + 10;
+        }
+        if (numberPulses == 5) {
+          creditsNode05 = creditsNode05 + 5;
+        }
+        if (numberPulses == 1) {
+          creditsNode05 = creditsNode05 + 1;
+        }
+        Serial.print("Node05: ");
+        Serial.println(creditsNode05);
+        break;
+ 
+      case node06:   
+        if (numberPulses == 10) {
+          creditsNode06 = creditsNode06 + 10;
+        }
+        if (numberPulses == 5) {
+          creditsNode06 = creditsNode06 + 5;
+        }
+        if (numberPulses == 1) {
+          creditsNode06 = creditsNode06 + 1;
+        }
+        Serial.print("Node06: ");
+        Serial.println(creditsNode06);
+        break;
+        */
+    }
+  }
+}
