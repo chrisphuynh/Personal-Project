@@ -1,0 +1,123 @@
+#include <SPI.h>
+#include <RF24Network.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+#define INTERVAL 700         // sets interval at 700 milliseconds
+ 
+RF24 radio(7, 8); // CE, CSN
+RF24Network network(radio);      // Include the radio in the network
+const uint16_t this_node = 01;
+const uint16_t master00 = 00;    // Address of the other node in Octal format
+unsigned long lastRead = 0;
+ 
+// this constant won't change:
+const int  inputPin = 2;    // the pin that the pulse is coming into
+ 
+// Variables will change:
+int pulseCounter = 0;   // counter for the number of pulses
+int pulseState = 0;         // current state of the pulse
+int lastPulseState = 0;     // previous state of the pulse
+int pulseValue = 0;
+ 
+void setup() {
+  // initialize the incoming pulse pin as a input:
+  pinMode(inputPin, INPUT);
+  radio.begin();
+  network.begin(90, this_node);  //(channel, node address)
+  radio.setDataRate(RF24_2MBPS);
+}
+ 
+ 
+void loop() {
+  // read the pushbutton input pin:
+  pulseState = digitalRead(inputPin);
+ 
+  // compare the pulseState to its previous state
+  if (pulseState != lastPulseState) {
+    //  if the time is greater than INTERVAL, resets pulseCounter and loop
+    if (millis() - lastRead >= INTERVAL) {
+        if (pulseCounter == 10) {
+          // Sending
+          RF24NetworkHeader header00 (master00);
+          bool ok = network.write(header00, &pulseCounter, sizeof(pulseCounter));
+            // Verification loop
+            delay(50);
+            network.update();
+            while (network.available()) {
+              do {
+                //Receiving
+                RF24NetworkHeader header;
+                network.read(header, &pulseValue, sizeof(pulseValue)); // Read the incoming data
+                
+                //Sending
+                RF24NetworkHeader header00 (master00);
+                bool ok = network.write(header00, &pulseCounter, sizeof(pulseCounter));
+                delay(50);
+              }while (pulseValue != pulseCounter); 
+                 delay(50); 
+                }
+          }
+        
+        if (pulseCounter == 5) {
+          // Sending
+          RF24NetworkHeader header00 (master00);
+          bool ok = network.write(header00, &pulseCounter, sizeof(pulseCounter));
+            // Verification loop
+            delay(50);
+            network.update();
+            while (network.available()) {
+              do {
+                //Receiving
+                RF24NetworkHeader header;
+                network.read(header, &pulseValue, sizeof(pulseValue)); // Read the incoming data
+                
+                //Sending
+                RF24NetworkHeader header00 (master00);
+                bool ok = network.write(header00, &pulseCounter, sizeof(pulseCounter));
+                delay(50);
+              }while (pulseValue != pulseCounter); 
+                delay(50);  
+                }
+          }
+        
+        if (pulseCounter == 1) {          
+          // Sending
+          RF24NetworkHeader header00 (master00);
+          bool ok = network.write(header00, &pulseCounter, sizeof(pulseCounter));
+            // Verification loop
+            delay(50);
+            network.update();
+            while (network.available()) {
+              do {
+                //Receiving
+                RF24NetworkHeader header;
+                network.read(header, &pulseValue, sizeof(pulseValue)); // Read the incoming data
+                
+                //Sending
+                RF24NetworkHeader header00 (master00);
+                bool ok = network.write(header00, &pulseCounter, sizeof(pulseCounter));
+                delay(50);
+              }while (pulseValue != pulseCounter); 
+                delay(50);  
+                }
+            }
+        
+       lastRead = millis(); 
+       pulseCounter = 0;
+    }
+    // if the state has changed, increment the counter
+    if (pulseState == HIGH) {
+      pulseCounter++;
+      Serial.print("number of pulses: ");
+      Serial.println(pulseCounter);
+        //  if pulseCounter equals 1, set lastRead equal to current time when counter equals 1 
+        if (pulseCounter == 1)  {
+          lastRead = millis();
+        }
+    }
+    // Delay a little bit to avoid bouncing
+    delay(25);
+  }
+  // save the current state as the last state, for next time through the loop
+  lastPulseState = pulseState;
+}
